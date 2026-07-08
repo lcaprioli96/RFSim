@@ -1,5 +1,5 @@
 import numpy as np
-from sionna.rt import RadioMapSolver
+from sionna.rt import PathSolver
 import matplotlib.pyplot as plt
 import os
 import json
@@ -33,17 +33,22 @@ def compute_radiomap(
 ):
     
     tx_names = list(scene.transmitters.keys())
+    rx_names = list(scene.receiver.keys())
 
-    rm_solver = RadioMapSolver()
+    # Instantiate a path solver
+    # The same path solver can be used with multiple scenes
+    p_solver  = PathSolver()
 
-    rm = rm_solver(scene=scene,
-        max_depth=radiomap_config["max_depth"],
-        cell_size=radiomap_config["cell_size"],
-        center=radiomap_config["center"],
-        size=radiomap_config["size"],
-        orientation=radiomap_config["orientation"],
-        samples_per_tx=radiomap_config["samples_per_tx"]
-    ) # rotate XY plane into XZ plane)
+    # Compute propagation paths
+    paths = p_solver(scene=scene,
+        max_depth=5,
+        los=True,
+        specular_reflection=True,
+        diffuse_reflection=False,
+        refraction=True,
+        synthetic_array=False,
+        seed=4
+    )
 
     path_gain = to_numpy(rm.path_gain)
     rss = to_numpy(rm.rss)
