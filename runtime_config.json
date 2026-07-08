@@ -1,0 +1,44 @@
+{
+  "output_root": "/content/drive/MyDrive/Sionna/output",
+  "seed": 42,
+  "frequency_hz": 3500000000.0,
+  "default_bs_power_dbm": 30.0,
+  "device_display_radius": 1.0,
+  "antenna_array": {
+    "tx_num_rows": 1,
+    "tx_num_cols": 1,
+    "tx_vertical_spacing": 0.5,
+    "tx_horizontal_spacing": 0.5,
+    "tx_pattern": "iso",
+    "tx_polarization": "V",
+    "rx_num_rows": 1,
+    "rx_num_cols": 1,
+    "rx_vertical_spacing": 0.5,
+    "rx_horizontal_spacing": 0.5,
+    "rx_pattern": "iso",
+    "rx_polarization": "V"
+  },
+  "ue_sampling": {
+    "height_m": 1.5,
+    "samples_per_region": 10
+  },
+  "ray_tracing": {
+    "max_depth": 3,
+    "max_num_paths_per_src": 1000000,
+    "samples_per_src": 100000,
+    "synthetic_array": true,
+    "los": true,
+    "specular_reflection": true,
+    "diffuse_reflection": false,
+    "refraction": true,
+    "diffraction": false,
+    "normalize_delays": false,
+    "seed": 42,
+    "rx_orientation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "device_display_radius": 1.0
+  }
+}
