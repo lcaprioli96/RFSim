@@ -344,8 +344,7 @@ def build_data(
         scene_id,
         scene,
         out_dir,
-        radiomap_config,
-        show=False,
+        paths_config
 ):
     
     tx_list = scene.transmitters
