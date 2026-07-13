@@ -78,7 +78,7 @@ def get_tx_metadata(scene):
             "position": to_numpy(tx.position).tolist(),
             "orientation": to_numpy(tx.orientation).tolist()
             if hasattr(tx, "orientation") else None,
-            "power_dbm": float(tx.power_dbm)
+            "power_dbm": float(np.asarray(to_numpy(tx.power_dbm)).item())
             if hasattr(tx, "power_dbm") else None
         })
 
@@ -229,10 +229,11 @@ def save_radiomap_plots(out_dir, converted):
 def compute_scene_radiomap_dataset(
     scene_id,
     scene,
-    out_dir,
-    radiomap_config,
+    root_dir,
+    radiomap_config=radiomap_config,
     save_plots=False
 ):
+    out_dir = root_dir / "output"
     os.makedirs(out_dir, exist_ok=True)
 
     print("Computing radio map...")
