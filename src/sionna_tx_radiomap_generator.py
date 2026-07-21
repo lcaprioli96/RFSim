@@ -68,10 +68,10 @@ def save_radiomap_arrays(out_dir, arrays, converted):
     for name, value in converted.items():
         np.save(f"{out_dir}/{name}.npy", value)
 
-def get_tx_metadata(scene):
+def get_tx_metadata(tx_list):
     tx_metadata = []
 
-    for tx_idx, (tx_name, tx) in enumerate(scene.transmitters.items()):
+    for tx_idx, (tx_name, tx) in enumerate(tx_list):
         tx_metadata.append({
             "tx_idx": tx_idx,
             "tx_name": tx_name,
@@ -233,8 +233,10 @@ def compute_scene_radiomap_dataset(
     radiomap_config=radiomap_config,
     save_plots=False
 ):
-    out_dir = root_dir / "output"
+    out_dir = root_dir / "output" / "radiomap"
     os.makedirs(out_dir, exist_ok=True)
+
+    tx_list = list(scene.transmitters.items())
 
     print("Computing radio map...")
     rm = compute_radiomap(scene, radiomap_config)
@@ -249,7 +251,7 @@ def compute_scene_radiomap_dataset(
     save_radiomap_arrays(out_dir, arrays, converted)
 
     print("Saving metadata...")
-    tx_metadata = get_tx_metadata(scene)
+    tx_metadata = get_tx_metadata(tx_list)
     save_radiomap_metadata(
         out_dir=out_dir,
         scene_id=scene_id,

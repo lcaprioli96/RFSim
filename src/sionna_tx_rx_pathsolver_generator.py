@@ -27,30 +27,66 @@ def dbm_to_watt(dbm):
 def watt_to_dbm(w):
     return 10 * np.log10(np.maximum(w, 1e-30)) + 30
 
+def get_tx_power_dbm(tx, tx_id):
+    if not hasattr(tx, "power_dbm"):
+        raise ValueError(
+            f"Transmitter {tx_id} has no power_dbm. "
+            "Set TX power before computing metrics."
+        )
+
+    power = np.asarray(to_numpy(tx.power_dbm)).reshape(-1)
+
+    if power.size == 0:
+        raise ValueError(
+            f"Transmitter {tx_id} has an empty power_dbm value."
+        )
+
+    return float(power[0])
+
+def to_numpy(x):
+    if hasattr(x, "numpy"):
+        return x.numpy()
+    return np.array(x)
+
 def save_tx_rx_positions(scene_id, tx_list, rx_list, out_dir):
     tx_rows = []
-    for tx in tx_list:
+    for tx_idx, (tx_id, tx) in enumerate(tx_list):
+
+        tx_position = np.asarray(to_numpy(tx.position)).reshape(-1)
+        tx_orientation = np.asarray(to_numpy(tx.orientation)).reshape(-1)
+
+        tx_power_dbm = get_tx_power_dbm(tx, tx_id)
+
         tx_rows.append({
             "scene_id": scene_id,
-            "tx_id": tx["id"],
-            "tx_x": tx["position"][0],
-            "tx_y": tx["position"][1],
-            "tx_z": tx["position"][2],
-            "tx_orientation_x": tx.get("orientation", [0,0,0])[0],
-            "tx_orientation_y": tx.get("orientation", [0,0,0])[1],
-            "tx_orientation_z": tx.get("orientation", [0,0,0])[2],
-            "tx_power_dbm": tx.get("power_dbm", 30.0)
+            "tx_idx": tx_idx,
+            "tx_id": tx_id,
+
+###################### CHECK CONSISTENCY ##################################
+            "tx_x": float(tx_position[0]),
+            "tx_y": float(tx_position[1]),
+            "tx_z": float(tx_position[2]),
+
+            "tx_orientation_x": float(tx_orientation[0]),
+            "tx_orientation_y": float(tx_orientation[1]),
+            "tx_orientation_z": float(tx_orientation[2]),
+
+            "tx_power_dbm": tx_power_dbm
         })
 
     rx_rows = []
-    for rx in rx_list:
+    for rx_idx, (rx_id, rx) in enumerate(rx_list):
+
+        rx_position = np.asarray(to_numpy(rx.position)).reshape(-1)
+
         rx_rows.append({
             "scene_id": scene_id,
-            "rx_id": rx["id"],
-            "rx_x": rx["position"][0],
-            "rx_y": rx["position"][1],
-            "rx_z": rx["position"][2],
-            "region_id": rx.get("region_id", None)
+            "rx_idx": rx_idx,
+            "rx_id": rx_id,
+
+            "rx_x": float(rx_position[0]),
+            "rx_y": float(rx_position[1]),
+            "rx_z": float(rx_position[2]),
         })
 
     pd.DataFrame(tx_rows).to_csv(f"{out_dir}/tx_positions.csv", index=False)
@@ -75,8 +111,39 @@ def compute_paths(scene, paths_config):
     return paths
 
 def extract_link_arrays(a, tau, rx_idx=0, tx_idx=0, rx_ant_idx=0, tx_ant_idx=0):
-    a_link = a[rx_idx, rx_ant_idx, tx_idx, tx_ant_idx]
-    tau_link = tau[rx_idx, rx_ant_idx, tx_idx, tx_ant_idx]
+    """
+    Extract path powers and delays for one TX-RX link.
+
+    Supports common Sionna CIR shapes:
+
+    a with antenna dims:
+        [num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths, num_time_steps]
+
+    a without antenna dims:
+        [num_rx, num_tx, num_paths, num_time_steps]
+
+    tau with antenna dims:
+        [num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths]
+
+    tau without antenna dims:
+        [num_rx, num_tx, num_paths]
+    """
+
+    # Extract a_link
+    if a.ndim == 6:
+        a_link = a[rx_idx, rx_ant_idx, tx_idx, tx_ant_idx]
+    elif a.ndim == 4:
+        a_link = a[rx_idx, tx_idx]
+    else:
+        raise ValueError(f"Unsupported a shape: {a.shape}")
+
+    # Extract tau_link
+    if tau.ndim == 5:
+        tau_link = tau[rx_idx, rx_ant_idx, tx_idx, tx_ant_idx]
+    elif tau.ndim == 3:
+        tau_link = tau[rx_idx, tx_idx]
+    else:
+        raise ValueError(f"Unsupported tau shape: {tau.shape}")
 
     a_link = np.squeeze(a_link)
     tau_link = np.squeeze(tau_link).reshape(-1)
@@ -84,6 +151,7 @@ def extract_link_arrays(a, tau, rx_idx=0, tx_idx=0, rx_ant_idx=0, tx_ant_idx=0):
     if a_link.ndim == 0:
         a_link = a_link.reshape(1)
 
+    # If a_link has a time dimension, average power over time
     if a_link.ndim > 1:
         path_power_linear = np.mean(np.abs(a_link) ** 2, axis=-1)
     else:
@@ -187,7 +255,7 @@ def compute_paper_rf_metrics(
         "sim_nrsrq": float(nrsrq_db)
     }
 
-def compute_path_rows(scene_id, tx_id, rx_id, path_power_linear, tau_link):
+def compute_path_rows(scene_id, tx_idx, tx_id, rx_idx, rx_id, path_power_linear, tau_link):
     path_rows = []
 
     if len(path_power_linear) == 0:
@@ -211,7 +279,9 @@ def compute_path_rows(scene_id, tx_id, rx_id, path_power_linear, tau_link):
     for path_id in range(len(path_power_linear)):
         path_rows.append({
             "scene_id": scene_id,
+            "tx_idx": tx_idx,
             "tx_id": tx_id,
+            "rx_idx": rx_idx,
             "rx_id": rx_id,
             "path_id": int(path_id),
             "path_power_linear": float(path_power_linear[path_id]),
@@ -230,49 +300,58 @@ def compute_scene_links(scene_id, scene, tx_list, rx_list, paths_config):
     all_link_rows = []
     all_path_rows = []
 
-    for rx in rx_list:
-        set_single_receiver(scene, rx)
+    paths = compute_paths(scene, paths_config)
 
-        paths = compute_paths(scene, paths_config)
+    a, tau = paths.cir(
+        normalize_delays=paths_config["normalize_delays"],
+        out_type="numpy"
+    )
 
-        a, tau = paths.cir(
-            normalize_delays=paths_config["normalize_delays"],
-            out_type="numpy"
-        )
+    for rx_idx, (rx_id, rx) in enumerate(rx_list):
+        # set_single_receiver(scene, rx)
 
-        for tx_idx, tx in enumerate(tx_list):
+        for tx_idx, (tx_id, tx) in enumerate(tx_list):
+
+            tx_power_dbm = get_tx_power_dbm(tx, tx_id)
+
             path_power_linear, tau_link = extract_link_arrays(
                 a=a,
                 tau=tau,
-                rx_idx=0,
+                rx_idx=rx_idx,
                 tx_idx=tx_idx
             )
 
+##################### CHECK POWER_DMB TYPE ###########################
             native_metrics = compute_native_link_metrics(
                 path_power_linear=path_power_linear,
                 tau_link=tau_link,
-                tx_power_dbm=tx.get("power_dbm", 30.0)
+                tx_power_dbm=tx_power_dbm
             )
 
             paper_metrics = compute_paper_rf_metrics(
                 path_gain_linear=native_metrics["path_gain_linear"],
-                tx_power_dbm=tx.get("power_dbm", 30.0)
+                tx_power_dbm=tx_power_dbm
             )
+
+            tx_position = np.asarray(to_numpy(tx.position)).reshape(-1)
+            rx_position = np.asarray(to_numpy(rx.position)).reshape(-1)
 
             link_row = {
                 "scene_id": scene_id,
-                "tx_id": tx["id"],
-                "rx_id": rx["id"],
+                "tx_idx": tx_idx,
+                "tx_id": tx_id,
+                "rx_idx": rx_idx,
+                "rx_id": rx_id,
+###################### CHECK CONSISTENCY ##################################
+                "tx_x": float(tx_position[0]),
+                "tx_y": float(tx_position[1]),
+                "tx_z": float(tx_position[2]),
 
-                "tx_x": tx["position"][0],
-                "tx_y": tx["position"][1],
-                "tx_z": tx["position"][2],
+                "rx_x": float(rx_position[0]),
+                "rx_y": float(rx_position[1]),
+                "rx_z": float(rx_position[2]),
 
-                "rx_x": rx["position"][0],
-                "rx_y": rx["position"][1],
-                "rx_z": rx["position"][2],
-
-                "tx_power_dbm": tx.get("power_dbm", 30.0)
+                "tx_power_dbm": tx_power_dbm
             }
 
             link_row.update(native_metrics)
@@ -282,8 +361,10 @@ def compute_scene_links(scene_id, scene, tx_list, rx_list, paths_config):
 
             path_rows = compute_path_rows(
                 scene_id=scene_id,
-                tx_id=tx["id"],
-                rx_id=rx["id"],
+                tx_idx=tx_idx,
+                tx_id=tx_id,
+                rx_idx=rx_idx,
+                rx_id=rx_id,
                 path_power_linear=path_power_linear,
                 tau_link=tau_link
             )
@@ -340,15 +421,18 @@ def build_fingerprint_table(link_rows):
 
     return fingerprint
 
-def build_data(
+def compute_scene_pathsolver_dataset(
         scene_id,
         scene,
-        out_dir,
+        root_dir,
         paths_config
 ):
     
-    tx_list = scene.transmitters
-    rx_list = scene.receivers
+    out_dir = root_dir / "output" / "pathsolver"
+    os.makedirs(out_dir, exist_ok=True)
+    
+    tx_list = list(scene.transmitters.items())
+    rx_list = list(scene.receivers.items())
 
     link_rows, path_rows = compute_scene_links(
         scene_id=scene_id,
