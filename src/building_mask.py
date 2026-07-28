@@ -354,9 +354,9 @@ def save_building_mask(
 
     print(f"Building mask saved to: {out_dir}")
 
-def build_mask(scene_id, scene, root_dir, vertical_axis, radio_map_config):
+def generate_mask(scene_id, scene, root_dir, vertical_axis, radio_map_config):
 
-    out_dir = root_dir / "output" / "mask"
+    out_dir = root_dir / "mask"
     os.makedirs(out_dir, exist_ok=True)
     
     ground_name, ground_object = find_ground_plane(scene, vertical_axis)
@@ -374,3 +374,5 @@ def build_mask(scene_id, scene, root_dir, vertical_axis, radio_map_config):
     show_mask(building_mask)
 
     save_building_mask(scene_id, out_dir, ground_name, vertical_axis, building_mask, free_mask, invalid_mask, mask_cell_centers, radio_map_config)
+
+    return building_mask, free_mask, invalid_mask, mask_cell_centers

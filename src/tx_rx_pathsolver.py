@@ -5,19 +5,6 @@ import os
 import json
 import pandas as pd
 
-paths_config = {
-    "max_depth": 5,
-    "samples_per_src": 10**6,
-    "max_num_paths_per_src": 10**4,
-    "synthetic_array": True,
-    "los": True,
-    "specular_reflection": True,
-    "diffuse_reflection": True,
-    "refraction": True,
-    "diffraction": False,
-    "normalize_delays": False
-}
-
 def linear_to_db(x):
     return 10 * np.log10(np.maximum(x, 1e-30))
 
@@ -308,7 +295,6 @@ def compute_scene_links(scene_id, scene, tx_list, rx_list, paths_config):
     )
 
     for rx_idx, (rx_id, rx) in enumerate(rx_list):
-        # set_single_receiver(scene, rx)
 
         for tx_idx, (tx_id, tx) in enumerate(tx_list):
 
@@ -321,7 +307,6 @@ def compute_scene_links(scene_id, scene, tx_list, rx_list, paths_config):
                 tx_idx=tx_idx
             )
 
-##################### CHECK POWER_DMB TYPE ###########################
             native_metrics = compute_native_link_metrics(
                 path_power_linear=path_power_linear,
                 tau_link=tau_link,
@@ -342,7 +327,7 @@ def compute_scene_links(scene_id, scene, tx_list, rx_list, paths_config):
                 "tx_id": tx_id,
                 "rx_idx": rx_idx,
                 "rx_id": rx_id,
-###################### CHECK CONSISTENCY ##################################
+
                 "tx_x": float(tx_position[0]),
                 "tx_y": float(tx_position[1]),
                 "tx_z": float(tx_position[2]),
@@ -395,7 +380,7 @@ def save_scene_link_dataset(scene_id, out_dir, tx_list, rx_list, link_rows, path
         "paths_config": paths_config
     }
 
-    with open(f"{out_dir}/scene_link_metadata.json", "w") as f:
+    with open(f"{out_dir}/pathsolvers_metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
 
 def build_fingerprint_table(link_rows):
@@ -428,7 +413,7 @@ def compute_scene_pathsolver_dataset(
         paths_config
 ):
     
-    out_dir = root_dir / "output" / "pathsolver"
+    out_dir = root_dir / "pathsolver"
     os.makedirs(out_dir, exist_ok=True)
     
     tx_list = list(scene.transmitters.items())

@@ -5,14 +5,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from sionna.rt import RadioMapSolver
-radiomap_config = {
-    "max_depth": 5,
-    "cell_size": [3, 3],
-    "center": [0, 1.5, 0],
-    "size": [500, 500],
-    "orientation": [0, 0, np.pi / 2],
-    "samples_per_tx": 10**7
-}
 
 def linear_to_db(x):
     return 10 * np.log10(np.maximum(x, 1e-30))
@@ -113,7 +105,7 @@ def save_radiomap_metadata(
         "saved_arrays": list(arrays.keys()) + list(converted.keys())
     }
 
-    with open(f"{out_dir}/metadata.json", "w") as f:
+    with open(f"{out_dir}/radiomap_metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
 
 def build_radiomap_summary(scene_id, converted, radiomap_config):
@@ -230,10 +222,10 @@ def compute_scene_radiomap_dataset(
     scene_id,
     scene,
     root_dir,
-    radiomap_config=radiomap_config,
+    radiomap_config,
     save_plots=False
 ):
-    out_dir = root_dir / "output" / "radiomap"
+    out_dir = root_dir / "radiomap"
     os.makedirs(out_dir, exist_ok=True)
 
     tx_list = list(scene.transmitters.items())
