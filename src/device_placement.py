@@ -88,7 +88,7 @@ def sample_tx_rx_positions(
     )
 
     tx_positions = positions[:num_tx].copy()
-    rx_positions = positions[num_tx:num_tx:num_tx + num_rx].copy()
+    rx_positions = positions[num_tx:num_tx + num_rx].copy()
 
     tx_indices = indices[:num_tx]
     rx_indices = indices[num_tx:num_tx + num_rx]
