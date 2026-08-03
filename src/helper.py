@@ -58,21 +58,40 @@ def get_horizontal_axes(
 
     return dimensions[horizontal_axes]
 
-def get_scene_params(scene, vertical_axis=1, positive_normal=True):
+def get_scene_params(
+    scene,
+    vertical_axis=1,
+    positive_normal=True,
+    plane_elevation=None,
+):
     bbox = scene.mi_scene.bbox()
 
     bbox_min = point3_to_numpy(bbox.min)
     bbox_max = point3_to_numpy(bbox.max)
 
     dimensions = bbox_max - bbox_min
-    center = (bbox_min + bbox_max) / 2.0
+    bbox_center = (bbox_min + bbox_max) / 2.0
+
+    if plane_elevation is None:
+        plane_elevation = bbox_min[vertical_axis]
+
+    plane_center = bbox_center.copy()
+    plane_center[vertical_axis] = plane_elevation
 
     return {
         "min": bbox_min,
         "max": bbox_max,
-        "dimensions": get_horizontal_axes(dimensions, vertical_axis),
-        "center": center,
-        "orientation": get_orientation(vertical_axis, positive_normal)
+        "bbox_center": bbox_center,
+        "plane_center": plane_center,
+        "dimensions": get_horizontal_axes(
+            dimensions,
+            vertical_axis,
+        ),
+        "orientation": get_orientation(
+            vertical_axis,
+            positive_normal,
+        ),
+        "plane_elevation": float(plane_elevation),
     }
 
 def path_confing(
@@ -115,7 +134,7 @@ def radiomap_config(
     return {
         "max_depth": int(max_depth),
         "cell_size": np.asarray(cell_size).tolist(),
-        "center": np.asarray(params["center"]).tolist(),
+        "center": np.asarray(params["plane_center"]).tolist(),
         "size": np.asarray(params["dimensions"]).tolist(),
         "orientation": np.asarray(params["orientation"]).tolist(),
         "samples_per_tx": int(samples_per_tx)
