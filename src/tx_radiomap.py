@@ -64,14 +64,40 @@ def get_tx_metadata(tx_list):
     tx_metadata = []
 
     for tx_idx, (tx_name, tx) in enumerate(tx_list):
+        position = np.asarray(
+            to_numpy(tx.position),
+            dtype=float,
+        ).reshape(-1)
+
+        orientation = (
+            np.asarray(
+                to_numpy(tx.orientation),
+                dtype=float,
+            ).reshape(-1)
+            if hasattr(tx, "orientation")
+            else None
+        )
+
+        power_dbm = (
+            float(
+                np.asarray(
+                    to_numpy(tx.power_dbm)
+                ).item()
+            )
+            if hasattr(tx, "power_dbm")
+            else None
+        )
+
         tx_metadata.append({
-            "tx_idx": tx_idx,
-            "tx_name": tx_name,
-            "position": to_numpy(tx.position).tolist(),
-            "orientation": to_numpy(tx.orientation).tolist()
-            if hasattr(tx, "orientation") else None,
-            "power_dbm": float(np.asarray(to_numpy(tx.power_dbm)).item())
-            if hasattr(tx, "power_dbm") else None
+            "tx_idx": int(tx_idx),
+            "tx_name": str(tx_name),
+            "position": position.tolist(),
+            "orientation": (
+                orientation.tolist()
+                if orientation is not None
+                else None
+            ),
+            "power_dbm": power_dbm,
         })
 
     return tx_metadata
@@ -82,27 +108,121 @@ def save_radiomap_metadata(
     radiomap_config,
     arrays,
     converted,
-    tx_metadata
+    tx_metadata,
+    vertical_axis=1,
+    mask_filename="scene_masks.npz",
+    placement_metadata_filename="placement_metadata_*.json",
 ):
+    all_arrays = {
+        **arrays,
+        **converted,
+    }
+
+    array_metadata = {}
+
+    for name, value in all_arrays.items():
+        value = np.asarray(value)
+
+        if name == "cell_centers":
+            axis_meaning = [
+                "radio_map_y_cell",
+                "radio_map_x_cell",
+                "coordinate",
+            ]
+        else:
+            axis_meaning = [
+                "tx_index",
+                "radio_map_y_cell",
+                "radio_map_x_cell",
+            ]
+
+        array_metadata[name] = {
+            "shape": list(value.shape),
+            "dtype": str(value.dtype),
+            "axis_meaning": axis_meaning,
+        }
+
+
     metadata = {
-        "scene_id": scene_id,
+        "schema_version": "1.0",
+        "artifact_type": "radio_map",
 
-        "radiomap_config": radiomap_config,
+        "scene": {
+            "scene_id": str(scene_id),
 
-        "tx_metadata": tx_metadata,
-
-        "array_shape": {
-            name: list(value.shape)
-            for name, value in {**arrays, **converted}.items()
+            "coordinate_system": {
+                "position_order": ["x", "y", "z"],
+                "vertical_axis": int(vertical_axis),
+                "radio_map_index_order": [
+                    "row",
+                    "column",
+                ],
+            },
         },
 
-        "axis_meaning": {
-            "axis_0": "tx_index",
-            "axis_1": "radio_map_y_cell",
-            "axis_2": "radio_map_x_cell"
+        "inputs": {
+            "placement_metadata_file": str(
+                placement_metadata_filename
+            ),
+            "mask_file": str(mask_filename),
         },
 
-        "saved_arrays": list(arrays.keys()) + list(converted.keys())
+        "config": {
+            "max_depth": int(
+                radiomap_config["max_depth"]
+            ),
+
+            "cell_size": np.asarray(
+                radiomap_config["cell_size"],
+                dtype=float,
+            ).reshape(-1).tolist(),
+
+            "center": np.asarray(
+                radiomap_config["center"],
+                dtype=float,
+            ).reshape(-1).tolist(),
+
+            "size": np.asarray(
+                radiomap_config["size"],
+                dtype=float,
+            ).reshape(-1).tolist(),
+
+            "orientation": np.asarray(
+                radiomap_config["orientation"],
+                dtype=float,
+            ).reshape(-1).tolist(),
+
+            "samples_per_tx": int(
+                radiomap_config["samples_per_tx"]
+            ),
+        },
+
+        "summary": {
+            "num_tx": int(len(tx_metadata)),
+
+            "grid_shape": (
+                list(all_arrays["cell_centers"].shape[:2])
+                if "cell_centers" in all_arrays
+                else None
+            ),
+
+            "num_saved_arrays": int(
+                len(all_arrays)
+            ),
+        },
+
+        "data": {
+            "transmitters": tx_metadata,
+            "arrays": array_metadata,
+        },
+
+        "outputs": {
+            "metadata_file": "radiomap_metadata.json",
+
+            "saved_arrays": list(
+                all_arrays.keys()
+            ),
+        },
     }
 
     with open(f"{out_dir}/radiomap_metadata.json", "w") as f:

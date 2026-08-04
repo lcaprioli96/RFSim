@@ -589,11 +589,22 @@ def build_random_placement_metadata(
             "tx_idx": int(tx_idx),
             "tx_name": f"tx_{tx_idx}",
             "placement_type": "ground",
-            "position": np.asarray(position).tolist(),
-            "mask_index": np.asarray(mask_index).tolist(),
+
+            "position": np.asarray(
+                position,
+                dtype=float,
+            ).reshape(-1).tolist(),
+
+            "mask_index": np.asarray(
+                mask_index,
+                dtype=int,
+            ).reshape(-1).tolist(),
+
             "height_above_ground": float(tx_height),
             "roof_height": None,
+            "roof_clearance": None,
         })
+
 
     # Rooftop transmitters continue after ground TXs
     rooftop_start_idx = len(ground_tx_positions)
@@ -610,13 +621,23 @@ def build_random_placement_metadata(
         tx_metadata.append({
             "tx_idx": int(tx_idx),
             "tx_name": f"tx_{tx_idx}",
-            "placement_type": "rooftop",
-            "position": np.asarray(position).tolist(),
-            "mask_index": np.asarray(mask_index).tolist(),
+            "placement_type": "roof",
+
+            "position": np.asarray(
+                position,
+                dtype=float,
+            ).reshape(-1).tolist(),
+
+            "mask_index": np.asarray(
+                mask_index,
+                dtype=int,
+            ).reshape(-1).tolist(),
+
             "height_above_ground": None,
             "roof_height": float(roof_height),
             "roof_clearance": float(roof_clearance),
         })
+
 
     # Ground receivers
     for rx_idx, (position, mask_index) in enumerate(
@@ -626,43 +647,73 @@ def build_random_placement_metadata(
             "rx_idx": int(rx_idx),
             "rx_name": f"rx_{rx_idx}",
             "placement_type": "ground",
-            "position": np.asarray(position).tolist(),
-            "mask_index": np.asarray(mask_index).tolist(),
+
+            "position": np.asarray(
+                position,
+                dtype=float,
+            ).reshape(-1).tolist(),
+
+            "mask_index": np.asarray(
+                mask_index,
+                dtype=int,
+            ).reshape(-1).tolist(),
+
             "height_above_ground": float(rx_height),
+            "roof_height": None,
+            "roof_clearance": None,
         })
 
+
     metadata = {
-        "scene_id": str(scene_id),
+        "schema_version": "1.0",
+        "artifact_type": "device_placement",
 
-        "placement_method": "random_mask_sampling",
+        "scene": {
+            "scene_id": str(scene_id),
 
-        "mask_source": {
-            "filename": str(mask_filename),
-            "building_mask_key": "building_mask",
-            "free_mask_key": "free_mask",
-            "invalid_mask_key": "invalid_mask",
-            "cell_centers_key": "mask_cell_centers",
+            "coordinate_system": {
+                "position_order": ["x", "y", "z"],
+                "vertical_axis": int(vertical_axis),
+                "mask_index_order": ["row", "column"],
+            },
         },
 
-        "coordinate_system": {
-            "position_order": ["x", "y", "z"],
-            "vertical_axis": int(vertical_axis),
-            "mask_index_order": ["row", "column"],
+        "inputs": {
+            "mask": {
+                "filename": str(mask_filename),
+
+                "array_keys": {
+                    "building_mask": "building_mask",
+                    "free_mask": "free_mask",
+                    "invalid_mask": "invalid_mask",
+                    "mask_cell_centers": "mask_cell_centers",
+                },
+            },
         },
 
-        "placement_config": {
-            "seed": None if seed is None else int(seed),
-            "tx_height": float(tx_height),
-            "rx_height": float(rx_height),
+        "config": {
+            "placement_method": "random_mask_sampling",
+
+            "seed": (
+                None
+                if seed is None
+                else int(seed)
+            ),
+
+            "ground_tx_height": float(tx_height),
+            "ground_rx_height": float(rx_height),
             "roof_clearance": float(roof_clearance),
             "min_building_height": float(min_building_height),
             "min_tx_distance": float(min_tx_distance),
             "sampling_with_replacement": False,
-        },
 
-        "device_ordering": {
-            "transmitters": "ground transmitters first, rooftop transmitters second",
-            "receivers": "receiver list order",
+            "device_ordering": {
+                "transmitters": (
+                    "ground transmitters first, "
+                    "roof transmitters second"
+                ),
+                "receivers": "sampled receiver order",
+            },
         },
 
         "summary": {
@@ -672,11 +723,26 @@ def build_random_placement_metadata(
             ),
             "num_ground_tx": int(len(ground_tx_positions)),
             "num_rooftop_tx": int(len(rooftop_tx_positions)),
+
             "num_rx": int(len(rx_positions)),
+            "num_ground_rx": int(len(rx_positions)),
+            "num_rooftop_rx": 0,
+
+            "num_devices": int(
+                len(ground_tx_positions)
+                + len(rooftop_tx_positions)
+                + len(rx_positions)
+            ),
         },
 
-        "transmitters": tx_metadata,
-        "receivers": rx_metadata,
+        "data": {
+            "transmitters": tx_metadata,
+            "receivers": rx_metadata,
+        },
+
+        "outputs": {
+            "metadata_file": "placement_metadata_random.json",
+        },
     }
 
     return metadata
@@ -697,74 +763,109 @@ def build_list_placement_metadata(
     transmitters = []
     receivers = []
 
+    # Transmitters
     for tx_idx, device in enumerate(tx_metadata):
+        placement_type = str(device["surface"])
+
         transmitters.append({
             "tx_idx": int(tx_idx),
             "tx_name": f"tx_{tx_idx}",
-            "placement_type": device["surface"],
+            "placement_type": placement_type,
 
-            # Original precise position from Blender
-            "requested_position": device["requested_position"],
+            # Position provided to the placement function
+            "requested_position": np.asarray(
+                device["requested_position"],
+                dtype=float,
+            ).reshape(-1).tolist(),
 
-            # Position actually assigned in Sionna
-            "position": device["final_position"],
+            # Final position assigned in Sionna
+            "position": np.asarray(
+                device["final_position"],
+                dtype=float,
+            ).reshape(-1).tolist(),
 
-            "mask_index": device["mask_index"],
+            "mask_index": np.asarray(
+                device["mask_index"],
+                dtype=int,
+            ).reshape(-1).tolist(),
+
             "mask_cell_distance": float(
                 device["mask_cell_distance"]
             ),
 
             "height_above_ground": (
-                None
-                if ground_tx_height is None
-                else float(ground_tx_height)
+                float(ground_tx_height)
+                if (
+                    placement_type == "ground"
+                    and ground_tx_height is not None
+                )
+                else None
             ),
 
             "roof_height": (
-                None
-                if device["roof_height"] is None
-                else float(device["roof_height"])
+                float(device["roof_height"])
+                if device["roof_height"] is not None
+                else None
             ),
 
             "roof_clearance": (
                 float(roof_clearance)
-                if device["surface"] == "roof"
+                if placement_type == "roof"
                 else None
             ),
         })
 
+
+    # Receivers
     for rx_idx, device in enumerate(rx_metadata):
+        placement_type = str(device["surface"])
+
         receivers.append({
             "rx_idx": int(rx_idx),
             "rx_name": f"rx_{rx_idx}",
-            "placement_type": device["surface"],
+            "placement_type": placement_type,
 
-            "requested_position": device["requested_position"],
-            "position": device["final_position"],
+            "requested_position": np.asarray(
+                device["requested_position"],
+                dtype=float,
+            ).reshape(-1).tolist(),
 
-            "mask_index": device["mask_index"],
+            "position": np.asarray(
+                device["final_position"],
+                dtype=float,
+            ).reshape(-1).tolist(),
+
+            "mask_index": np.asarray(
+                device["mask_index"],
+                dtype=int,
+            ).reshape(-1).tolist(),
+
             "mask_cell_distance": float(
                 device["mask_cell_distance"]
             ),
 
             "height_above_ground": (
-                None
-                if ground_rx_height is None
-                else float(ground_rx_height)
+                float(ground_rx_height)
+                if (
+                    placement_type == "ground"
+                    and ground_rx_height is not None
+                )
+                else None
             ),
 
             "roof_height": (
-                None
-                if device["roof_height"] is None
-                else float(device["roof_height"])
+                float(device["roof_height"])
+                if device["roof_height"] is not None
+                else None
             ),
 
             "roof_clearance": (
                 float(roof_clearance)
-                if device["surface"] == "roof"
+                if placement_type == "roof"
                 else None
             ),
         })
+
 
     num_ground_tx = sum(
         device["placement_type"] == "ground"
@@ -786,63 +887,101 @@ def build_list_placement_metadata(
         for device in receivers
     )
 
-    return {
-        "scene_id": str(scene_id),
 
-        "placement_method": "position_list_with_mask_validation",
+    metadata = {
+        "schema_version": "1.0",
+        "artifact_type": "device_placement",
 
-        "mask_source": {
-            "filename": str(mask_filename),
-            "building_mask_key": "building_mask",
-            "free_mask_key": "free_mask",
-            "invalid_mask_key": "invalid_mask",
-            "cell_centers_key": "mask_cell_centers",
+        "scene": {
+            "scene_id": str(scene_id),
+
+            "coordinate_system": {
+                "position_order": ["x", "y", "z"],
+                "vertical_axis": int(vertical_axis),
+                "mask_index_order": ["row", "column"],
+            },
         },
 
-        "coordinate_system": {
-            "position_order": ["x", "y", "z"],
-            "vertical_axis": int(vertical_axis),
-            "mask_index_order": ["row", "column"],
+        "inputs": {
+            "mask": {
+                "filename": str(mask_filename),
+
+                "array_keys": {
+                    "building_mask": "building_mask",
+                    "free_mask": "free_mask",
+                    "invalid_mask": "invalid_mask",
+                    "mask_cell_centers": "mask_cell_centers",
+                },
+            },
         },
 
-        "placement_config": {
+        "config": {
+            "placement_method": (
+                "position_list_with_mask_validation"
+            ),
+
             "ground_tx_height": (
                 None
                 if ground_tx_height is None
                 else float(ground_tx_height)
             ),
+
             "ground_rx_height": (
                 None
                 if ground_rx_height is None
                 else float(ground_rx_height)
             ),
+
             "roof_clearance": float(roof_clearance),
-            "min_building_height": float(min_building_height),
+            "min_building_height": float(
+                min_building_height
+            ),
+
             "max_cell_distance": (
                 None
                 if max_cell_distance is None
                 else float(max_cell_distance)
             ),
-            "allow_rooftop_rx": bool(allow_rooftop_rx),
-        },
 
-        "device_ordering": {
-            "transmitters": "input transmitter list order",
-            "receivers": "input receiver list order",
+            "allow_rooftop_rx": bool(allow_rooftop_rx),
+
+            "device_ordering": {
+                "transmitters": (
+                    "input transmitter list order"
+                ),
+                "receivers": (
+                    "input receiver list order"
+                ),
+            },
         },
 
         "summary": {
             "num_tx": int(len(transmitters)),
             "num_ground_tx": int(num_ground_tx),
             "num_rooftop_tx": int(num_rooftop_tx),
+
             "num_rx": int(len(receivers)),
             "num_ground_rx": int(num_ground_rx),
             "num_rooftop_rx": int(num_rooftop_rx),
+
+            "num_devices": int(
+                len(transmitters) + len(receivers)
+            ),
         },
 
-        "transmitters": transmitters,
-        "receivers": receivers,
+        "data": {
+            "transmitters": transmitters,
+            "receivers": receivers,
+        },
+
+        "outputs": {
+            "metadata_file": (
+                "placement_metadata_list.json"
+            ),
+        },
     }
+
+    return metadata
 
 def save_placement_metadata(
     out_dir,

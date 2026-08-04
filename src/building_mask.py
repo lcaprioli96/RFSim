@@ -328,25 +328,85 @@ def save_building_mask(
     )
 
     metadata = {
-        "scene_id": scene_id,
-        "file": "scene_masks.npz",
-        "ground_name": ground_name,
-        "vertical_axis": vertical_axis,
-        "center": np.asarray(
-            radio_map_config["center"]
-        ).tolist(),
+        "schema_version": "1.0",
+        "artifact_type": "scene_mask",
 
-        "orientation": np.asarray(
-            radio_map_config["orientation"]
-        ).tolist(),
+        "scene": {
+            "scene_id": str(scene_id),
+            "ground_name": str(ground_name),
 
-        "size": np.asarray(
-            radio_map_config["size"]
-        ).tolist(),
+            "coordinate_system": {
+                "position_order": ["x", "y", "z"],
+                "vertical_axis": int(vertical_axis),
+                "mask_index_order": ["row", "column"],
+            },
+        },
 
-        "cell_size": np.asarray(
-            radio_map_config["cell_size"]
-        ).tolist(),
+        "inputs": {},
+
+        "config": {
+            "center": np.asarray(
+                radio_map_config["center"]
+            ).reshape(-1).tolist(),
+
+            "orientation": np.asarray(
+                radio_map_config["orientation"]
+            ).reshape(-1).tolist(),
+
+            "size": np.asarray(
+                radio_map_config["size"]
+            ).reshape(-1).tolist(),
+
+            "cell_size": np.asarray(
+                radio_map_config["cell_size"]
+            ).reshape(-1).tolist(),
+        },
+
+        "summary": {
+            "mask_shape": list(building_mask.shape),
+            "num_building_cells": int(np.count_nonzero(building_mask)),
+            "num_free_cells": int(np.count_nonzero(free_mask)),
+            "num_invalid_cells": int(np.count_nonzero(invalid_mask)),
+        },
+
+        "data": {
+            "arrays": {
+                "building_mask": {
+                    "key": "building_mask",
+                    "shape": list(building_mask.shape),
+                    "dtype": str(building_mask.dtype),
+                    "meaning": "Cells classified as buildings",
+                },
+
+                "free_mask": {
+                    "key": "free_mask",
+                    "shape": list(free_mask.shape),
+                    "dtype": str(free_mask.dtype),
+                    "meaning": "Cells available for ground placement",
+                },
+
+                "invalid_mask": {
+                    "key": "invalid_mask",
+                    "shape": list(invalid_mask.shape),
+                    "dtype": str(invalid_mask.dtype),
+                    "meaning": "Cells excluded from device placement",
+                },
+
+                "mask_cell_centers": {
+                    "key": "mask_cell_centers",
+                    "shape": list(cell_centers.shape),
+                    "dtype": str(cell_centers.dtype),
+                    "meaning": (
+                        "World coordinates associated with each mask cell"
+                    ),
+                },
+            },
+        },
+
+        "outputs": {
+            "mask_file": "scene_masks.npz",
+            "metadata_file": "mask_metadata.json",
+        },
     }
 
     with open(f"{out_dir}/mask_metadata.json", "w") as f:

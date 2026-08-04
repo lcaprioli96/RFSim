@@ -1,5 +1,6 @@
 import numpy as np
 from sionna.rt import PathSolver
+from pathlib import Path
 import matplotlib.pyplot as plt
 import os
 import json
@@ -358,11 +359,36 @@ def compute_scene_links(scene_id, scene, tx_list, rx_list, paths_config):
 
     return all_link_rows, all_path_rows
 
-def save_scene_link_dataset(scene_id, out_dir, tx_list, rx_list, link_rows, path_rows, paths_config):
-    os.makedirs(out_dir, exist_ok=True)
+def save_scene_link_dataset(
+    scene_id,
+    out_dir,
+    tx_list,
+    rx_list,
+    link_rows,
+    path_rows,
+    paths_config,
+    vertical_axis=1,
+    placement_metadata_filename="placement_metadata_*.json",
+):
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    pd.DataFrame(link_rows).to_csv(f"{out_dir}/link_data.csv", index=False)
-    pd.DataFrame(path_rows).to_csv(f"{out_dir}/path_data.csv", index=False)
+    link_filename = "link_data.csv"
+    path_filename = "path_data.csv"
+    metadata_filename = "pathsolver_metadata.json"
+
+    link_df = pd.DataFrame(link_rows)
+    path_df = pd.DataFrame(path_rows)
+
+    link_df.to_csv(
+        out_dir / link_filename,
+        index=False,
+    )
+
+    path_df.to_csv(
+        out_dir / path_filename,
+        index=False,
+    )
 
     save_tx_rx_positions(
         scene_id=scene_id,
@@ -372,12 +398,119 @@ def save_scene_link_dataset(scene_id, out_dir, tx_list, rx_list, link_rows, path
     )
 
     metadata = {
-        "scene_id": scene_id,
-        "num_tx": len(tx_list),
-        "num_rx": len(rx_list),
-        "num_links": len(link_rows),
-        "num_paths_total": len(path_rows),
-        "paths_config": paths_config
+        "schema_version": "1.0",
+        "artifact_type": "path_solver",
+
+        "scene": {
+            "scene_id": str(scene_id),
+
+            "coordinate_system": {
+                "position_order": ["x", "y", "z"],
+                "vertical_axis": int(vertical_axis),
+            },
+        },
+
+        "inputs": {
+            "placement_metadata_file": (
+                None
+                if placement_metadata_filename is None
+                else str(placement_metadata_filename)
+            ),
+        },
+
+        "config": {
+            "max_depth": int(
+                paths_config["max_depth"]
+            ),
+
+            "samples_per_src": int(
+                paths_config["samples_per_src"]
+            ),
+
+            "max_num_paths_per_src": int(
+                paths_config["max_num_paths_per_src"]
+            ),
+
+            "synthetic_array": bool(
+                paths_config["synthetic_array"]
+            ),
+
+            "los": bool(
+                paths_config["los"]
+            ),
+
+            "specular_reflection": bool(
+                paths_config["specular_reflection"]
+            ),
+
+            "diffuse_reflection": bool(
+                paths_config["diffuse_reflection"]
+            ),
+
+            "refraction": bool(
+                paths_config["refraction"]
+            ),
+
+            "diffraction": bool(
+                paths_config["diffraction"]
+            ),
+
+            "normalize_delays": bool(
+                paths_config["normalize_delays"]
+            ),
+        },
+
+        "summary": {
+            "num_tx": int(len(tx_list)),
+            "num_rx": int(len(rx_list)),
+            "num_links": int(len(link_df)),
+            "num_paths_total": int(len(path_df)),
+
+            "expected_num_links": int(
+                len(tx_list) * len(rx_list)
+            ),
+        },
+
+        "data": {
+            "device_ordering": {
+                "transmitters": (
+                    "scene.transmitters item order"
+                ),
+                "receivers": (
+                    "scene.receivers item order"
+                ),
+                "link_indexing": (
+                    "tx_idx and rx_idx refer to the "
+                    "saved transmitter and receiver order"
+                ),
+            },
+
+            "datasets": {
+                "links": {
+                    "filename": link_filename,
+                    "num_rows": int(len(link_df)),
+                    "columns": link_df.columns.tolist(),
+                    "meaning": (
+                        "One record for each TX-RX link"
+                    ),
+                },
+
+                "paths": {
+                    "filename": path_filename,
+                    "num_rows": int(len(path_df)),
+                    "columns": path_df.columns.tolist(),
+                    "meaning": (
+                        "One record for each propagation path"
+                    ),
+                },
+            },
+        },
+
+        "outputs": {
+            "link_dataset": link_filename,
+            "path_dataset": path_filename,
+            "metadata_file": metadata_filename,
+        },
     }
 
     with open(f"{out_dir}/pathsolvers_metadata.json", "w") as f:

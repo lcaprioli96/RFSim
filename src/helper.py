@@ -11,6 +11,50 @@ def point3_to_numpy(point):
         dtype=np.float64,
     )
 
+def blender_to_sionna_coords(
+    blender_coords,
+    scale=1.0,
+    offset=(0.0, 0.0, 0.0)
+):
+    """
+    Convert Blender coordinates to Sionna coordinates.
+
+    Blender convention:
+        [x, y, z]
+        z = vertical axis
+
+    Your Sionna convention:
+        [-x, z, y]
+        y = vertical axis
+    """
+
+    coords = np.asarray(blender_coords, dtype=float)
+
+    # Accept single point [x, y, z]
+    if coords.ndim == 1:
+        coords = coords.reshape(1, 3)
+
+    if coords.shape[1] != 3:
+        raise ValueError(f"Expected shape [N, 3], got {coords.shape}")
+
+    blender_x = coords[:, 0]
+    blender_y = coords[:, 1]
+    blender_z = coords[:, 2]
+
+    sionna_x = -blender_x
+    sionna_y = blender_z
+    sionna_z = blender_y
+
+    sionna_coords = np.stack(
+        [sionna_x, sionna_y, sionna_z],
+        axis=1
+    )
+
+    sionna_coords = sionna_coords * scale
+    sionna_coords = sionna_coords + np.asarray(offset, dtype=float).reshape(1, 3)
+
+    return sionna_coords
+
 def get_orientation(
     vertical_axis=1,
     positive_normal=True,
