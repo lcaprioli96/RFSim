@@ -218,26 +218,39 @@ def compute_paper_rf_metrics(
     thermal_noise_dbm=-100.0,
     interference_dbm=-110.0
 ):
+
+    epsilon = 1e-30
     tx_power_w = dbm_to_watt(tx_power_dbm)
+
     signal_w = tx_power_w * path_gain_linear
+    signal_rssi_dbm = watt_to_dbm(signal_w)
 
     noise_w = dbm_to_watt(thermal_noise_dbm)
     interference_w = dbm_to_watt(interference_dbm)
 
-    rssi_w = signal_w + interference_w + noise_w
-    rssi_dbm = watt_to_dbm(rssi_w)
+    total_rssi_w = signal_w + interference_w + noise_w
+    total_rssi_dbm = watt_to_dbm(total_rssi_w)
 
-    nsinr_linear = signal_w / (interference_w + noise_w)
+    nsinr_linear = signal_w / np.maximum(
+        interference_w + noise_w,
+        epsilon,
+    )
     nsinr_db = linear_to_db(nsinr_linear)
 
     nrsrp_w = signal_w / n_re
     nrsrp_dbm = watt_to_dbm(nrsrp_w)
 
-    nrsrq_linear = (n_rb * nrsrp_w) / rssi_w
+    nrsrq_linear = (
+        n_rb * nrsrp_w
+    ) / np.maximum(
+        total_rssi_w,
+        epsilon,
+    )
     nrsrq_db = linear_to_db(nrsrq_linear)
 
     return {
-        "sim_rssi": float(rssi_dbm),
+        "sim_total_rssi": float(total_rssi_dbm),
+        "sim_signal_rssi": float(signal_rssi_dbm),
         "sim_nsinr": float(nsinr_db),
         "sim_nrsrp": float(nrsrp_dbm),
         "sim_nrsrq": float(nrsrq_db)
