@@ -183,3 +183,10 @@ def radiomap_config(
         "orientation": np.asarray(params["orientation"]).tolist(),
         "samples_per_tx": int(samples_per_tx)
     }
+
+def remove_all_devices(scene):
+    for tx_name in list(scene.transmitters.keys()):
+        scene.remove(tx_name)
+
+    for rx_name in list(scene.receivers.keys()):
+        scene.remove(rx_name)
