@@ -9,7 +9,7 @@ from mathutils import Vector
 # CONFIGURATION
 # ============================================================
 
-ROOT_DIR = r"C:\Users\ludav\workshop\CNR\RFSim\scene"
+ROOT_DIR = r"C:\Users\ludav\workshop\CNR\RFSim"
 SCENE_NAME = "scene"
 
 GROUND_MARGIN = 1.0       # meters around the imported buildings
@@ -391,8 +391,10 @@ def build_osm_scene(
         ↓
     Mitsuba XML
     """
-    with open(os.path.join(root_dir, "coordinates.json"), "r") as f:
+    with open(os.path.join(root_dir, "osm_coordinates.json"), "r") as f:
         config = json.load(f)
+
+    scene_dir = os.path.join(ROOT_DIR, "scene")
 
     for scene in config["scene"]:
 
@@ -431,7 +433,7 @@ def build_osm_scene(
         # --------------------------------------------------------
 
         xml_path = export_mitsuba(
-            root_dir,
+            scene_dir,
             scene_id,
         )
 
